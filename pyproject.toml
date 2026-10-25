@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finance-project-rl"
+version = "0.1.0"
+description = "Multi-asset reinforcement-learning research for Indian equities"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "gymnasium>=1.0",
+    "numpy>=1.26",
+    "pandas>=2.1",
+]
+
+[project.optional-dependencies]
+data = ["yfinance>=0.2.54"]
+deep-learning = ["torch>=2.2"]
+sentiment = ["torch>=2.2", "transformers>=4.45"]
+test = ["pytest>=8"]
+
+[project.scripts]
+finance-rl = "finance_rl.cli:main"
+finance-rl-fetch = "finance_rl.fetch_data:main"
+
+[tool.setuptools.packages.find]
+include = ["finance_rl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
