@@ -33,15 +33,15 @@ optimizes only the assets in the price/NAV CSV you provide. Replace or extend
 asset_class,ticker,scheme_code,label
 stock,RELIANCE.NS,,
 gold_etf,GOLDBEES.NS,,
-mutual_fund,,118347,IDBI_NIFTY50_DIRECT
+mutual_fund,,119063,HDFC_NIFTY50_DIRECT
 ```
 
 Use Yahoo Finance tickers for `stock`, `etf`, and `gold_etf`; use an MFAPI
 scheme code for `mutual_fund`. The example universe spans several equity
 sectors, a broad-market ETF, a gold ETF, and two Nifty 50 index funds. Replace
 it with the stocks, funds, ETFs, or other supported tickers you want to
-compare. Index membership changes over time, and the example is not a
-recommendation.
+compare. For the current example, see the CSV's HDFC and UTI fund scheme codes.
+Index membership changes over time, and the example is not a recommendation.
 
 ## Fetch data
 
@@ -58,7 +58,9 @@ The command writes aligned `prices.csv`, `macro.csv`, `news.csv`, and
 `metadata.json` under `data/raw/`. You can instead pass tickers directly with
 `--symbols ...` and scheme codes with `--funds ...`. A common date range is used
 for all selected assets; new funds/ETFs with later inception dates will shorten
-the usable history. `GOLDBEES.NS` is a gold ETF proxy, not physical gold. Macro
+the usable history. NAVs are forward-filled for at most five market rows to
+cover short calendar mismatches; larger gaps truncate the common data window
+instead of silently treating a stale fund NAV as current. `GOLDBEES.NS` is a gold ETF proxy, not physical gold. Macro
 columns are market proxies, not a complete official RBI dataset. RSS provides
 current headlines, not historical news, and must not be treated as historical
 training data. FinBERT needs the optional `sentiment` extra and downloads its
@@ -78,8 +80,21 @@ buy/sell/hold actions. Training uses the first 80% of rows in chronological
 order; the remaining rows are held out for deterministic evaluation. Change
 the cutoff with `--train-fraction`.
 
-The evaluation JSON saves final weights by asset as well as cash/equity. Results
-are also compared with cash and equal-weight buy-and-hold baselines.
+Each run produces a descriptive financial analysis in the output directory:
+
+- `financial_analysis.md`: evaluation window, risk/return comparison, asset
+  statistics, and diversification summary.
+- `equity_curve.png` and `drawdown.png`: RL agent versus cash and equal-weight
+  buy-and-hold.
+- `asset_returns.png`, `allocation.png`, and `correlation_heatmap.png`.
+- `asset_statistics.csv`, `asset_return_correlations.csv`, and
+  `ppo_evaluation.json` (named for the selected algorithm): detailed metrics
+  and final weights by asset.
+
+Metrics include total and annualized returns, annualized volatility, Sharpe
+ratio (zero risk-free assumption), and maximum drawdown. These historical
+statistics are descriptive—not a forecast or proof that RL improves on the
+baselines.
 
 `macro.csv` should have a date index and numeric macro columns. To score recent
 headlines, pass `--news-csv data/raw/news.csv`; FinBERT uses its

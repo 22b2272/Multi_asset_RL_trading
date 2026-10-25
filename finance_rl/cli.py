@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from finance_rl.analysis import build_descriptive_statistics, generate_analysis_report
 from finance_rl.env import ContinuousPortfolioEnv, MultiAssetTradingEnv
 from finance_rl.features import build_features, finbert_sentiment, load_yahoo_prices
 from finance_rl.metrics import performance_metrics
@@ -45,6 +46,28 @@ def _baselines(prices: pd.DataFrame, lookback: int, initial_cash: float = 100_00
     return {
         "cash": performance_metrics(cash_curve),
         "equal_weight_buy_and_hold": performance_metrics(equal_weight_curve),
+    }
+
+
+def _load_asset_classes(prices_csv: Path | None, price_data: pd.DataFrame) -> dict[str, str]:
+    if prices_csv is not None:
+        metadata_path = prices_csv.parent / "metadata.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            sources = metadata.get("asset_sources", {})
+            return {
+                name: source.get("asset_class", "unspecified")
+                for name, source in sources.items()
+                if isinstance(source, dict)
+            }
+    return {
+        name: (
+            "mutual_fund" if name.startswith("MF_")
+            else "gold_etf" if "GOLD" in name.upper()
+            else "etf" if name.upper().endswith("BEES.NS")
+            else "stock"
+        )
+        for name in price_data.columns
     }
 
 
@@ -94,6 +117,10 @@ def main() -> None:
         model, returns = train_dqn(env, config, algorithm=args.agent)
     evaluation = evaluate_agent(test_env, model, args.agent)
     benchmarks = _baselines(test_prices, args.lookback)
+    asset_classes = _load_asset_classes(args.prices_csv, price_data)
+    evaluation_prices = test_prices.iloc[args.lookback - 1 :]
+    descriptive = build_descriptive_statistics(evaluation_prices, asset_classes)
+    evaluation_dates = test_prices.index[args.lookback - 1 :]
 
     args.output.mkdir(parents=True, exist_ok=True)
     model_path = args.output / f"{args.agent}_model.pt"
@@ -107,10 +134,20 @@ def main() -> None:
         json.dumps({"agent": evaluation, "baselines": benchmarks}, indent=2),
         encoding="utf-8",
     )
+    outputs = generate_analysis_report(
+        args.output,
+        evaluation_dates,
+        evaluation_prices,
+        evaluation,
+        benchmarks,
+        asset_classes,
+        returns,
+    )
     print(f"Saved model to {model_path}")
     print(f"Final training episode reward: {returns[-1]:.6f}")
     print(f"Held-out final equity: {evaluation['final_equity']:.2f}")
     print(f"Equal-weight buy-and-hold equity: {benchmarks['equal_weight_buy_and_hold']['final_equity']:.2f}")
+    print(f"Financial report: {outputs['financial_analysis']}")
 
 
 if __name__ == "__main__":

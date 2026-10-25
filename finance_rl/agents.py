@@ -253,6 +253,7 @@ def evaluate_agent(env, model: nn.Module, algorithm: Literal["dqn", "ddqn", "ppo
         "total_log_return": total_reward,
         "total_costs": float(info["total_costs"]),
         "cash_weight": float(info.get("cash_weight", info["cash"] / info["equity"])),
+        "equity_curve": equity_curve,
         "asset_weights": {
             asset: float(weight)
             for asset, weight in zip(env.assets, info["portfolio_weights"])

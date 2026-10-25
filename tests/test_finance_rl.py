@@ -6,6 +6,7 @@ from finance_rl.data_sources import load_asset_universe
 from finance_rl.env import ContinuousPortfolioEnv, MultiAssetTradingEnv
 from finance_rl.features import build_features
 from finance_rl.metrics import performance_metrics
+from finance_rl.analysis import build_descriptive_statistics, generate_analysis_report
 
 
 @pytest.fixture
@@ -164,3 +165,49 @@ def test_performance_metrics_calculates_return_and_drawdown():
     assert metrics["final_equity"] == pytest.approx(110)
     assert metrics["total_return"] == pytest.approx(0.1)
     assert metrics["max_drawdown"] == pytest.approx(-0.25)
+
+
+def test_descriptive_statistics_reports_risk_and_asset_classes(market_data):
+    prices, _, _ = market_data
+    statistics = build_descriptive_statistics(
+        prices,
+        {"RELIANCE.NS": "stock", "TCS.NS": "mutual_fund"},
+    )
+    assert statistics.loc["RELIANCE.NS", "asset_class"] == "stock"
+    assert statistics.loc["TCS.NS", "asset_class"] == "mutual_fund"
+    assert statistics.loc["RELIANCE.NS", "annualized_volatility"] >= 0
+    assert statistics.loc["RELIANCE.NS", "max_drawdown"] <= 0
+
+
+def test_analysis_report_writes_tables_markdown_and_plots(tmp_path, market_data):
+    pytest.importorskip("matplotlib")
+    prices, _, _ = market_data
+    dates = prices.index[4:]
+    agent = {
+        "equity_curve": np.linspace(100_000, 110_000, len(dates)).tolist(),
+        "final_equity": 110_000.0,
+        "total_return": 0.1,
+        "annualized_return": 0.1,
+        "annualized_volatility": 0.1,
+        "sharpe_ratio_rf_0": 1.0,
+        "sortino_ratio_rf_0": 1.0,
+        "historical_var_95_daily": 0.02,
+        "historical_cvar_95_daily": 0.03,
+        "max_drawdown": -0.02,
+        "asset_weights": {"RELIANCE.NS": 0.45, "TCS.NS": 0.45},
+        "cash_weight": 0.1,
+    }
+    baselines = {
+        "cash": performance_metrics(np.full(len(dates), 100_000.0)),
+        "equal_weight_buy_and_hold": performance_metrics(np.linspace(100_000, 108_000, len(dates))),
+    }
+    outputs = generate_analysis_report(
+        tmp_path,
+        dates,
+        prices.iloc[4:],
+        agent,
+        baselines,
+        training_returns=[0.1, 0.2, 0.3],
+    )
+    assert len(outputs) == 10
+    assert all(path.exists() and path.stat().st_size > 0 for path in outputs.values())

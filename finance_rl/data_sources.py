@@ -151,7 +151,7 @@ def fetch_research_bundle(
         market[fund_column] = nav.rename(fund_column)
         fund_metadata[fund_column] = scheme_name
 
-    market = market.sort_index().ffill().dropna(how="any")
+    market = market.sort_index().ffill(limit=5).dropna(how="any")
     market.index.name = "date"
     macro = macro.sort_index().ffill().dropna(how="all")
     macro.index.name = "date"
@@ -189,6 +189,14 @@ def fetch_research_bundle(
                         f"macro__{column}": f"Yahoo Finance market proxy ({column})"
                         for column in macro.columns
                     },
+                },
+                "price_coverage": {
+                    name: {
+                        "start": str(market[name].first_valid_index().date()),
+                        "end": str(market[name].last_valid_index().date()),
+                        "observations": int(market[name].notna().sum()),
+                    }
+                    for name in market.columns
                 },
                 "mutual_fund_source": "MFAPI (scheme history data)",
                 "news_source": "Yahoo Finance RSS (latest headlines only)",
